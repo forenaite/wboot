@@ -1,0 +1,46 @@
+#!/bin/bash
+# Information on SYSRQ:
+# https://en.wikipedia.org/wiki/Magic_SysRq_key
+
+if [[ $(id -u) != 0 ]]; then echo "I need root privilege!"; exit 1; fi
+
+WAKEALARM=30
+
+if [[ $1 == "-h" || $1 == "--help" ]]; then
+   printf "\nReboot or shutdown the system using SYSRQ, and power it back on without using WoL.\n\nUsage:\n\t$0 reboot\t\tReboot.\n\t$0 shutdown\t\tPoweroff.\n"
+   printf "\t$0 wakealarm TIMEOUT\tShutdown and set BIOS wake alarm to ${WAKEALARM}s.\n\t$0 -h, --help\t\tDisplay help.\n\n"
+   exit 0
+fi
+
+if [[ $1 == "wakealarm" && ! -e /sys/class/rtc/rtc0/wakealarm ]]; then echo "This system does not support wakealarm!"; exit 1; fi
+
+if [[ -z $1 ]]; then echo "Please select a option. Try $0 -h"; exit 1; fi
+
+set_sysrq(){
+   #Enables SYSRQ
+   echo 1 > /proc/sys/kernel/sysrq
+   #Sync
+   echo s > /proc/sysrq-trigger
+   #Remount RO
+   echo u > /proc/sysrq-trigger
+}
+
+if [[ $1 == "shutdown" ]]; then
+   set_sysrq
+   echo "Shutting down ..."
+   echo o > /proc/sysrq-trigger
+elif [[ $1 == "wakealarm" ]]; then
+   [[ ! -z $2 ]] && WAKEALARM=$2
+   set_sysrq
+   echo "Shutting down system. Will wakealarm on $WAKEALARM seconds!"
+   sleep 3
+   echo 0 > /sys/class/rtc/rtc0/wakealarm
+   echo +$WAKEALARM > /sys/class/rtc/rtc0/wakealarm
+   echo o > /proc/sysrq-trigger
+elif [[ $1 == "reboot" ]]; then
+   set_sysrq
+   echo "Rebooting..."
+   echo b > /proc/sysrq-trigger
+else
+   echo "Invalid option."
+fi
